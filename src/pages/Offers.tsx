@@ -60,6 +60,12 @@ export function Offers() {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
 
+  const toggleSelected = useCallback((offerId: string, value: boolean) => {
+    setSelected((prev) =>
+      value ? [...prev, offerId] : prev.filter((id) => id !== offerId),
+    );
+  }, []);
+
   const viewOffer = useCallback(
     (offer: string) => {
       if (offer.trim()) {
@@ -337,14 +343,7 @@ export function Offers() {
                         multiSelect
                           ? [
                               selected.includes(record.offer_id),
-                              (value) =>
-                                setSelected((prev) =>
-                                  value
-                                    ? [...prev, record.offer_id]
-                                    : prev.filter(
-                                        (id) => id !== record.offer_id,
-                                      ),
-                                ),
+                              (value) => toggleSelected(record.offer_id, value),
                             ]
                           : null
                       }
