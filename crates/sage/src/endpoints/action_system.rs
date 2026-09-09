@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chia_wallet_sdk::{
     driver::{
         FeeAction, MetadataUpdate, MintNftAction, SendAction, TransferNftById, UpdateNftAction,
@@ -23,6 +25,7 @@ impl Sage {
         let mut ctx = SpendContext::new();
         let mut actions = vec![];
         let mut info = ConfirmationInfo::default();
+        let mut uri_cache: HashMap<Vec<String>, Bytes32> = HashMap::new();
 
         for action in req.actions {
             match action {
@@ -87,6 +90,7 @@ impl Sage {
                                 royalty_ten_thousandths: action.royalty_ten_thousandths,
                             },
                             &mut info,
+                            &mut uri_cache,
                         )
                         .await?;
 
