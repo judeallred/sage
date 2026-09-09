@@ -1,5 +1,6 @@
 import { commands, events, OfferRecord } from '@/bindings';
 import Container from '@/components/Container';
+import { DeleteOfferDialog } from '@/components/dialogs/DeleteOfferDialog';
 import { NfcScanDialog } from '@/components/dialogs/NfcScanDialog';
 import { ViewOfferDialog } from '@/components/dialogs/ViewOfferDialog';
 import Header from '@/components/Header';
@@ -24,6 +25,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useErrors } from '@/hooks/useErrors';
 import { useScannerOrClipboard } from '@/hooks/useScannerOrClipboard';
+import { deleteOffers } from '@/lib/offers';
 import { cn } from '@/lib/utils';
 import { useOfferState } from '@/state';
 import { t } from '@lingui/core/macro';
@@ -36,6 +38,7 @@ import {
   ImageIcon,
   NfcIcon,
   ScanIcon,
+  TrashIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -59,6 +62,7 @@ export function Offers() {
   );
   const [multiSelect, setMultiSelect] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
 
   const toggleSelected = useCallback((offerId: string, value: boolean) => {
     setSelected((prev) =>
@@ -330,6 +334,31 @@ export function Offers() {
                         </Tooltip>
                       </TooltipProvider>
                     )}
+                    {filteredOffers.length > 0 && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant='destructive'
+                              size='sm'
+                              className='flex items-center gap-1'
+                              onClick={() => setIsDeleteAllOpen(true)}
+                            >
+                              <TrashIcon
+                                className='h-4 w-4'
+                                aria-hidden='true'
+                              />
+                              <span className='hidden sm:inline'>
+                                <Trans>Delete All</Trans>
+                              </span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <Trans>Delete All Filtered Offers</Trans>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                   </div>
                 </div>
 
@@ -357,6 +386,18 @@ export function Offers() {
       </Container>
 
       <NfcScanDialog open={showScanUi} onOpenChange={setShowScanUi} />
+
+      <DeleteOfferDialog
+        open={isDeleteAllOpen}
+        onOpenChange={setIsDeleteAllOpen}
+        offerCount={filteredOffers.length}
+        onDelete={() => {
+          deleteOffers(filteredOffers.map((offer) => offer.offer_id))
+            .then(updateOffers)
+            .catch(addError)
+            .finally(() => setIsDeleteAllOpen(false));
+        }}
+      />
 
       {selected.length > 0 && (
         <OffersMultiSelectActions
