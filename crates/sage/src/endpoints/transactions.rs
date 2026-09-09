@@ -633,9 +633,6 @@ impl Sage {
     }
 }
 
-/// Fetches the content hash for a list of (mirror) URIs, reusing the result if the same
-/// URI list has already been fetched during this call (e.g. shared across NFT editions).
-/// The fetched data itself is stored once in `info.nft_data`, keyed by that hash.
 async fn fetch_uri_hash(
     cache: &mut HashMap<Vec<String>, Bytes32>,
     info: &mut ConfirmationInfo,
