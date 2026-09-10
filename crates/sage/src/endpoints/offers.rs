@@ -11,7 +11,7 @@ use sage_api::{
     OfferAmount, OfferAsset, OfferRecord, OfferRecordStatus, OfferSummary, OptionAssets, TakeOffer,
     TakeOfferResponse, ViewOffer, ViewOfferResponse,
 };
-use sage_database::{AssetKind, OfferRow, OfferStatus, OfferedAsset};
+use sage_database::{AssetKind, DatabaseTx, OfferRow, OfferStatus, OfferedAsset};
 use sage_wallet::{
     Offered, Requested, RequestedCat, SyncCommand, TakenOffer, Transaction, Wallet, WalletError,
     aggregate_offers, insert_transaction, sort_offer,
@@ -50,16 +50,45 @@ impl Sage {
             return Err(Error::NoSigningKey);
         };
 
-        let mut offers = Vec::with_capacity(req.offers.len());
+        let mut built = Vec::with_capacity(req.offers.len());
 
         for item in req.offers {
-            offers.push(self.make_offer_with_key(item, &master_sk).await?);
+            let auto_import = item.auto_import;
+            built.push((
+                self.build_offer_with_key(item, &master_sk).await?,
+                auto_import,
+            ));
         }
 
-        Ok(MakeOffersResponse { offers })
+        // Import every auto-imported offer through one shared transaction, rather than one
+        // transaction per offer, so a large batch doesn't serialize behind SQLite's
+        // single-writer lock alongside unrelated background database activity.
+        if built.iter().any(|(_, auto_import)| *auto_import) {
+            let mut tx = wallet.db.tx().await?;
+
+            for (response, auto_import) in &built {
+                if *auto_import {
+                    self.import_offer_into(
+                        &mut tx,
+                        ImportOffer {
+                            offer: response.offer.clone(),
+                        },
+                    )
+                    .await?;
+                }
+            }
+
+            tx.commit().await?;
+        }
+
+        Ok(MakeOffersResponse {
+            offers: built.into_iter().map(|(response, _)| response).collect(),
+        })
     }
 
-    async fn make_offer_with_key(
+    /// Builds and signs an offer, encoding it, but does not import it — callers are
+    /// responsible for importing it (see `import_offer_into`) if `req.auto_import` is set.
+    async fn build_offer_with_key(
         &self,
         req: MakeOffer,
         master_sk: &SecretKey,
@@ -202,13 +231,6 @@ impl Sage {
 
         let encoded_offer = encode_offer(&offer)?;
 
-        if req.auto_import {
-            self.import_offer(ImportOffer {
-                offer: encoded_offer.clone(),
-            })
-            .await?;
-        }
-
         Ok(MakeOfferResponse {
             offer: encoded_offer,
             offer_id: hex::encode(sort_offer(offer).name()),
@@ -302,13 +324,31 @@ impl Sage {
 
     pub async fn import_offer(&self, req: ImportOffer) -> Result<ImportOfferResponse> {
         let wallet = self.wallet()?;
+        let mut tx = wallet.db.tx().await?;
+
+        let offer_id = self.import_offer_into(&mut tx, req).await?;
+
+        tx.commit().await?;
+
+        Ok(ImportOfferResponse {
+            offer_id: hex::encode(offer_id),
+        })
+    }
+
+    /// Does the work of importing an offer into the database using an already-open
+    /// transaction, so a batch of offers (see `make_offers`) can share one transaction
+    /// instead of each opening and committing its own. Callers own committing `tx`.
+    async fn import_offer_into(
+        &self,
+        tx: &mut DatabaseTx<'_>,
+        req: ImportOffer,
+    ) -> Result<Bytes32> {
+        let wallet = self.wallet()?;
         let spend_bundle = sort_offer(decode_offer(&req.offer)?);
         let offer_id = spend_bundle.name();
 
         if wallet.db.offer(offer_id).await?.is_some() {
-            return Ok(ImportOfferResponse {
-                offer_id: hex::encode(offer_id),
-            });
+            return Ok(offer_id);
         }
 
         let mut ctx = SpendContext::new();
@@ -416,8 +456,6 @@ impl Sage {
             });
         }
 
-        let mut tx = wallet.db.tx().await?;
-
         let inserted_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system time is before the UNIX epoch")
@@ -497,11 +535,7 @@ impl Sage {
             .await?;
         }
 
-        tx.commit().await?;
-
-        Ok(ImportOfferResponse {
-            offer_id: hex::encode(offer_id),
-        })
+        Ok(offer_id)
     }
 
     pub fn combine_offers(&self, req: CombineOffers) -> Result<CombineOffersResponse> {
