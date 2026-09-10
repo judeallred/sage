@@ -217,6 +217,14 @@ mod tests {
         test.transact(coin_spends).await?;
         test.wait_for_coins().await;
 
+        let minted_nft = test
+            .wallet
+            .db
+            .wallet_nft(nfts[0].info.launcher_id)
+            .await?
+            .expect("missing nft");
+        assert_eq!(minted_nft.nft_info.minter_hash, Some(did.info.launcher_id));
+
         let puzzle_hash = test.wallet.change_p2_puzzle_hash().await?;
 
         let nft = nfts.remove(0);
