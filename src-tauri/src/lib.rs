@@ -96,6 +96,7 @@ macro_rules! sage_commands {
             commands::get_transactions,
             commands::validate_address,
             commands::make_offer,
+            commands::make_offers,
             commands::take_offer,
             commands::combine_offers,
             commands::view_offer,

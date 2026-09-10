@@ -65,9 +65,6 @@ export function OfferCreationProgressDialog({
     onProcessingEnd: () => {
       // Don't auto-close on success
     },
-    onProgress: (index: number) => {
-      setCurrentOfferIndex(index);
-    },
   });
 
   // Handle uploads when offers are created
@@ -251,11 +248,7 @@ export function OfferCreationProgressDialog({
     if (isProcessing || isUploading) {
       const offerNumber = currentOfferIndex + 1;
       if (currentStep === 'creating') {
-        return (
-          <Trans>
-            Creating offer {offerNumber} of {totalOffers}...
-          </Trans>
-        );
+        return null;
       } else if (currentStep === 'uploading') {
         const enabledMarketplaceConfigs = marketplaces.filter(
           (marketplace) => enabledMarketplaces?.[marketplace.id],
@@ -307,9 +300,11 @@ export function OfferCreationProgressDialog({
             {isProcessing || isUploading ? (
               <div className='space-y-2'>
                 <p>{getWaitMessage()}</p>
-                <p className='text-sm text-muted-foreground'>
-                  {getProgressMessage()}
-                </p>
+                {getProgressMessage() && (
+                  <p className='text-sm text-muted-foreground'>
+                    {getProgressMessage()}
+                  </p>
+                )}
               </div>
             ) : createdOffers.length > 1 ? (
               uploadedToMarketplaces ? (

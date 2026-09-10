@@ -72,6 +72,32 @@ pub struct MakeOfferResponse {
     pub offer_id: String,
 }
 
+/// Create multiple offers in a single call, reusing one signing-key decryption for all of them
+#[cfg_attr(
+    feature = "openapi",
+    crate::openapi_attr(
+        tag = "Offers",
+        description = "Create multiple offers in one call (e.g. one offer per NFT), decrypting the signing key only once instead of once per offer."
+    )
+)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(specta::Type))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct MakeOffers {
+    /// The offers to create
+    pub offers: Vec<MakeOffer>,
+}
+
+/// Response with created offers
+#[cfg_attr(feature = "openapi", crate::openapi_attr(tag = "Offers"))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(specta::Type))]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct MakeOffersResponse {
+    /// The created offers
+    pub offers: Vec<MakeOfferResponse>,
+}
+
 /// Accept an offer
 #[cfg_attr(
     feature = "openapi",
