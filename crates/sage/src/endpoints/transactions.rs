@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
 use chia_wallet_sdk::{
@@ -291,13 +290,9 @@ impl Sage {
 
         let mut mints = Vec::with_capacity(req.mints.len());
         let mut info = ConfirmationInfo::default();
-        let mut uri_cache: HashMap<Vec<String>, Bytes32> = HashMap::new();
 
         for item in req.mints {
-            mints.push(
-                self.convert_nft_mint(item, &mut info, &mut uri_cache)
-                    .await?,
-            );
+            mints.push(self.convert_nft_mint(item, &mut info).await?);
         }
 
         let (coin_spends, nfts) = wallet.bulk_mint_nfts(fee, did_id, mints).await?;
@@ -574,7 +569,6 @@ impl Sage {
         &self,
         item: sage_api::NftMint,
         info: &mut ConfirmationInfo,
-        uri_cache: &mut HashMap<Vec<String>, Bytes32>,
     ) -> Result<WalletNftMint> {
         let testnet = self.network().genesis_challenge == TESTNET11_CONSTANTS.genesis_challenge;
 
@@ -590,7 +584,7 @@ impl Sage {
         } else if item.data_uris.is_empty() {
             None
         } else {
-            Some(fetch_uri_hash(uri_cache, info, item.data_uris.clone(), testnet).await?)
+            Some(fetch_uri_hash(info, item.data_uris.clone(), testnet).await?)
         };
 
         let metadata_hash = if let Some(metadata_hash) = item.metadata_hash {
@@ -598,7 +592,7 @@ impl Sage {
         } else if item.metadata_uris.is_empty() {
             None
         } else {
-            Some(fetch_uri_hash(uri_cache, info, item.metadata_uris.clone(), testnet).await?)
+            Some(fetch_uri_hash(info, item.metadata_uris.clone(), testnet).await?)
         };
 
         let license_hash = if let Some(license_hash) = item.license_hash {
@@ -606,7 +600,7 @@ impl Sage {
         } else if item.license_uris.is_empty() {
             None
         } else {
-            Some(fetch_uri_hash(uri_cache, info, item.license_uris.clone(), testnet).await?)
+            Some(fetch_uri_hash(info, item.license_uris.clone(), testnet).await?)
         };
 
         let p2_puzzle_hash = if let Some(address) = item.address {
@@ -634,12 +628,11 @@ impl Sage {
 }
 
 async fn fetch_uri_hash(
-    cache: &mut HashMap<Vec<String>, Bytes32>,
     info: &mut ConfirmationInfo,
     uris: Vec<String>,
     testnet: bool,
 ) -> Result<Bytes32> {
-    if let Some(&hash) = cache.get(&uris) {
+    if let Some(&hash) = info.uri_hashes.get(&uris) {
         return Ok(hash);
     }
 
@@ -650,7 +643,7 @@ async fn fetch_uri_hash(
     .await??;
 
     let hash = data.hash;
-    cache.insert(uris, hash);
+    info.uri_hashes.insert(uris, hash);
     info.nft_data.insert(hash, data);
 
     Ok(hash)
