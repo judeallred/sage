@@ -76,6 +76,22 @@ impl_endpoints_tauri! {
 
 #[command]
 #[specta]
+pub async fn make_offers_with_progress(
+    state: State<'_, AppState>,
+    req: MakeOffers,
+    on_progress: tauri::ipc::Channel<u32>,
+) -> Result<MakeOffersResponse> {
+    Ok(state
+        .lock()
+        .await
+        .make_offers_with_progress(req, |index| {
+            let _ = on_progress.send(index as u32);
+        })
+        .await?)
+}
+
+#[command]
+#[specta]
 pub async fn validate_address(state: State<'_, AppState>, address: String) -> Result<bool> {
     let state = state.lock().await;
     let Some(address) = Address::decode(&address).ok() else {

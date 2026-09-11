@@ -65,16 +65,23 @@ function AssetDisplay({
     return assets.options.filter((id) => id && typeof id === 'string');
   }, [assets.options]);
 
+  // asset_id === '' means the row hasn't had a token selected yet (distinct from
+  // asset_id === null, which means XCH) — exclude it, same as nftIds/optionIds above.
+  const validTokens = useMemo(
+    () => assets.tokens.filter((token) => token.asset_id !== ''),
+    [assets.tokens],
+  );
+
   useEffect(() => {
     const fetchTokenNames = async () => {
-      if (assets.tokens.length === 0) {
+      if (validTokens.length === 0) {
         setTokensWithNames([]);
         return;
       }
       setLoadingTokens(true);
 
       try {
-        const tokensWithNamesPromises = assets.tokens.map(
+        const tokensWithNamesPromises = validTokens.map(
           async ({ asset_id: assetId, amount }) => {
             try {
               const tokenResponse = await commands.getToken({
@@ -126,7 +133,7 @@ function AssetDisplay({
         console.error('Error fetching token names:', error);
         // Fallback to original tokens without names
         setTokensWithNames(
-          assets.tokens.map((token) => ({
+          validTokens.map((token) => ({
             ...token,
             displayName: getAssetDisplayName(null, null, 'token'),
             iconUrl: null,
@@ -137,7 +144,7 @@ function AssetDisplay({
     };
 
     fetchTokenNames();
-  }, [assets.tokens]);
+  }, [validTokens]);
 
   useEffect(() => {
     const fetchNftDetails = async () => {
@@ -191,7 +198,7 @@ function AssetDisplay({
 
   return (
     <div className='space-y-2'>
-      {assets.tokens.length > 0 && (
+      {validTokens.length > 0 && (
         <div>
           <h4 className='font-semibold'>
             <Trans>Tokens</Trans>
@@ -347,7 +354,7 @@ function AssetDisplay({
         </div>
       )}
 
-      {assets.tokens.length === 0 &&
+      {validTokens.length === 0 &&
         assets.nfts.filter((n) => n).length === 0 &&
         assets.options.filter((o) => o).length === 0 && (
           <p className='text-sm text-muted-foreground'>

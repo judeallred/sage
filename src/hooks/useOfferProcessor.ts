@@ -3,12 +3,14 @@ import { useBiometric } from '@/hooks/useBiometric';
 import { toMojos } from '@/lib/utils';
 import { OfferState, useWalletState } from '@/state';
 import { t } from '@lingui/core/macro';
+import { Channel } from '@tauri-apps/api/core';
 import { useCallback, useRef, useState } from 'react';
 
 interface UseOfferProcessorProps {
   offerState: OfferState;
   splitNftOffers: boolean;
   onProcessingEnd?: () => void; // Callback for when offer processing (success or fail) is done
+  onProgress?: (index: number) => void; // Callback for progress updates
 }
 
 interface UseOfferProcessorReturn {
@@ -23,6 +25,7 @@ export function useOfferProcessor({
   offerState,
   splitNftOffers,
   onProcessingEnd,
+  onProgress,
 }: UseOfferProcessorProps): UseOfferProcessorReturn {
   const walletState = useWalletState();
   const { promptIfEnabled } = useBiometric();
@@ -110,11 +113,19 @@ export function useOfferProcessor({
           }),
         );
 
-        const data = await commands.makeOffers({ offers });
+        const channel = new Channel<number>();
+        channel.onmessage = (index) => onProgress?.(index);
+
+        const data = await commands.makeOffersWithProgress(
+          { offers },
+          channel,
+        );
         if (!isCancelled.current) {
           setCreatedOffers(data.offers.map((offer) => offer.offer));
         }
       } else {
+        onProgress?.(0);
+
         const offeredAssets: OfferAmount[] = [
           ...offeredTokens,
           ...offerState.offered.nfts.map((nft) => ({
@@ -168,6 +179,7 @@ export function useOfferProcessor({
     walletState.sync.unit.precision,
     promptIfEnabled,
     onProcessingEnd,
+    onProgress,
   ]);
 
   return {

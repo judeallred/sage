@@ -42,6 +42,17 @@ impl Sage {
     }
 
     pub async fn make_offers(&self, req: MakeOffers) -> Result<MakeOffersResponse> {
+        self.make_offers_with_progress(req, |_| {}).await
+    }
+
+    /// Same as `make_offers`, but calls `on_progress(index)` after each offer is built and
+    /// signed (before the index'th offer of the batch), so a caller with a way to stream
+    /// progress back to the user (e.g. a Tauri IPC channel) can show a live counter.
+    pub async fn make_offers_with_progress(
+        &self,
+        req: MakeOffers,
+        mut on_progress: impl FnMut(usize),
+    ) -> Result<MakeOffersResponse> {
         let wallet = self.wallet()?;
 
         let (_mnemonic, Some(master_sk)) =
@@ -52,7 +63,9 @@ impl Sage {
 
         let mut built = Vec::with_capacity(req.offers.len());
 
-        for item in req.offers {
+        for (index, item) in req.offers.into_iter().enumerate() {
+            on_progress(index);
+
             let auto_import = item.auto_import;
             built.push((
                 self.build_offer_with_key(item, &master_sk).await?,
@@ -62,8 +75,12 @@ impl Sage {
 
         // Import every auto-imported offer through one shared transaction, rather than one
         // transaction per offer, so a large batch doesn't serialize behind SQLite's
-        // single-writer lock alongside unrelated background database activity.
+        // single-writer lock alongside unrelated background database activity. This is real,
+        // sequential work (re-parsing each offer, several inserts each) — signal it with an
+        // out-of-range index (== built.len()) so a caller isn't left watching a frozen counter.
         if built.iter().any(|(_, auto_import)| *auto_import) {
+            on_progress(built.len());
+
             let mut tx = wallet.db.tx().await?;
 
             for (response, auto_import) in &built {

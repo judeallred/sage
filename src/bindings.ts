@@ -209,6 +209,9 @@ async makeOffer(req: MakeOffer) : Promise<MakeOfferResponse> {
 async makeOffers(req: MakeOffers) : Promise<MakeOffersResponse> {
     return await TAURI_INVOKE("make_offers", { req });
 },
+async makeOffersWithProgress(req: MakeOffers, onProgress: TAURI_CHANNEL<number>) : Promise<MakeOffersResponse> {
+    return await TAURI_INVOKE("make_offers_with_progress", { req, onProgress });
+},
 async takeOffer(req: TakeOffer) : Promise<TakeOfferResponse> {
     return await TAURI_INVOKE("take_offer", { req });
 },

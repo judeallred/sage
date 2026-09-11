@@ -69,6 +69,8 @@ commands.allow = [
     "get_transactions",
     "validate_address",
     "make_offer",
+    "make_offers",
+    "make_offers_with_progress",
     "take_offer",
     "combine_offers",
     "view_offer",
