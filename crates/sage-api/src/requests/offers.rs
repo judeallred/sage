@@ -72,12 +72,12 @@ pub struct MakeOfferResponse {
     pub offer_id: String,
 }
 
-/// Create multiple offers in a single call, reusing one signing-key decryption for all of them
+/// Create multiple offers in one call
 #[cfg_attr(
     feature = "openapi",
     crate::openapi_attr(
         tag = "Offers",
-        description = "Create multiple offers in one call (e.g. one offer per NFT), decrypting the signing key only once instead of once per offer."
+        description = "Create multiple offers in one call (e.g. one offer per NFT)."
     )
 )]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +96,14 @@ pub struct MakeOffers {
 pub struct MakeOffersResponse {
     /// The created offers
     pub offers: Vec<MakeOfferResponse>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "tauri", derive(specta::Type))]
+#[serde(tag = "phase", rename_all = "snake_case")]
+pub enum MakeOffersProgress {
+    Building { index: u32 },
+    Importing,
 }
 
 /// Accept an offer

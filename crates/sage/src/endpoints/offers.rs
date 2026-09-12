@@ -7,9 +7,9 @@ use sage_api::{
     Amount, CancelOffer, CancelOfferResponse, CancelOffers, CancelOffersResponse, CombineOffers,
     CombineOffersResponse, DeleteOffer, DeleteOfferResponse, GetOffer, GetOfferResponse, GetOffers,
     GetOffersForAsset, GetOffersForAssetResponse, GetOffersResponse, ImportOffer,
-    ImportOfferResponse, MakeOffer, MakeOfferResponse, MakeOffers, MakeOffersResponse, NftRoyalty,
-    OfferAmount, OfferAsset, OfferRecord, OfferRecordStatus, OfferSummary, OptionAssets, TakeOffer,
-    TakeOfferResponse, ViewOffer, ViewOfferResponse,
+    ImportOfferResponse, MakeOffer, MakeOfferResponse, MakeOffers, MakeOffersProgress,
+    MakeOffersResponse, NftRoyalty, OfferAmount, OfferAsset, OfferRecord, OfferRecordStatus,
+    OfferSummary, OptionAssets, TakeOffer, TakeOfferResponse, ViewOffer, ViewOfferResponse,
 };
 use sage_database::{AssetKind, DatabaseTx, OfferRow, OfferStatus, OfferedAsset};
 use sage_wallet::{
@@ -42,16 +42,14 @@ impl Sage {
     }
 
     pub async fn make_offers(&self, req: MakeOffers) -> Result<MakeOffersResponse> {
-        self.make_offers_with_progress(req, |_| {}).await
+        self.make_offers_with_progress(req, |_| {}, || false).await
     }
 
-    /// Same as `make_offers`, but calls `on_progress(index)` after each offer is built and
-    /// signed (before the index'th offer of the batch), so a caller with a way to stream
-    /// progress back to the user (e.g. a Tauri IPC channel) can show a live counter.
     pub async fn make_offers_with_progress(
         &self,
         req: MakeOffers,
-        mut on_progress: impl FnMut(usize),
+        mut on_progress: impl FnMut(MakeOffersProgress),
+        is_cancelled: impl Fn() -> bool,
     ) -> Result<MakeOffersResponse> {
         let wallet = self.wallet()?;
 
@@ -64,7 +62,13 @@ impl Sage {
         let mut built = Vec::with_capacity(req.offers.len());
 
         for (index, item) in req.offers.into_iter().enumerate() {
-            on_progress(index);
+            if is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+
+            on_progress(MakeOffersProgress::Building {
+                index: index as u32,
+            });
 
             let auto_import = item.auto_import;
             built.push((
@@ -73,17 +77,19 @@ impl Sage {
             ));
         }
 
-        // Import every auto-imported offer through one shared transaction, rather than one
-        // transaction per offer, so a large batch doesn't serialize behind SQLite's
-        // single-writer lock alongside unrelated background database activity. This is real,
-        // sequential work (re-parsing each offer, several inserts each) — signal it with an
-        // out-of-range index (== built.len()) so a caller isn't left watching a frozen counter.
+        // One shared transaction, not one per offer: N separate transactions serialize behind
+        // SQLite's single-writer lock alongside unrelated background database activity, which
+        // is measurably slow for large batches.
         if built.iter().any(|(_, auto_import)| *auto_import) {
-            on_progress(built.len());
+            on_progress(MakeOffersProgress::Importing);
 
             let mut tx = wallet.db.tx().await?;
 
             for (response, auto_import) in &built {
+                if is_cancelled() {
+                    return Err(Error::Cancelled);
+                }
+
                 if *auto_import {
                     self.import_offer_into(
                         &mut tx,
@@ -103,8 +109,6 @@ impl Sage {
         })
     }
 
-    /// Builds and signs an offer, encoding it, but does not import it — callers are
-    /// responsible for importing it (see `import_offer_into`) if `req.auto_import` is set.
     async fn build_offer_with_key(
         &self,
         req: MakeOffer,
@@ -352,9 +356,7 @@ impl Sage {
         })
     }
 
-    /// Does the work of importing an offer into the database using an already-open
-    /// transaction, so a batch of offers (see `make_offers`) can share one transaction
-    /// instead of each opening and committing its own. Callers own committing `tx`.
+    // Caller commits `tx`.
     async fn import_offer_into(
         &self,
         tx: &mut DatabaseTx<'_>,

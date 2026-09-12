@@ -44,9 +44,9 @@ export function OfferCreationProgressDialog({
   const [isUploading, setIsUploading] = useState(false);
   const [hasStartedProcessing, setHasStartedProcessing] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
-  const [currentStep, setCurrentStep] = useState<'creating' | 'uploading'>(
-    'creating',
-  );
+  const [currentStep, setCurrentStep] = useState<
+    'creating' | 'finalizing' | 'uploading'
+  >('creating');
   const [currentMarketplaceIndex, setCurrentMarketplaceIndex] = useState(0);
   const [currentOfferIndex, setCurrentOfferIndex] = useState(0);
   const totalOffers = splitNftOffers
@@ -65,8 +65,12 @@ export function OfferCreationProgressDialog({
     onProcessingEnd: () => {
       // Don't auto-close on success
     },
-    onProgress: (index: number) => {
-      setCurrentOfferIndex(index);
+    onProgress: (progress) => {
+      if (progress.phase === 'building') {
+        setCurrentOfferIndex(progress.index);
+      } else {
+        setCurrentStep('finalizing');
+      }
     },
   });
 
@@ -223,7 +227,7 @@ export function OfferCreationProgressDialog({
   // Each combination is spelled out as a whole sentence so translators get
   // complete phrases rather than English fragments stitched together.
   const getWaitMessage = () => {
-    if (currentStep === 'creating') {
+    if (currentStep === 'creating' || currentStep === 'finalizing') {
       if (uploadedToMarketplaces) {
         return splitNftOffers ? (
           <Trans>
@@ -252,14 +256,13 @@ export function OfferCreationProgressDialog({
     if (isProcessing || isUploading) {
       const offerNumber = currentOfferIndex + 1;
       if (currentStep === 'creating') {
-        if (currentOfferIndex >= totalOffers) {
-          return <Trans>Finalizing your offers...</Trans>;
-        }
         return (
           <Trans>
             Creating offer {offerNumber} of {totalOffers}...
           </Trans>
         );
+      } else if (currentStep === 'finalizing') {
+        return <Trans>Finalizing your offers...</Trans>;
       } else if (currentStep === 'uploading') {
         const enabledMarketplaceConfigs = marketplaces.filter(
           (marketplace) => enabledMarketplaces?.[marketplace.id],
@@ -289,7 +292,7 @@ export function OfferCreationProgressDialog({
                   className='h-4 w-4 animate-spin'
                   aria-hidden='true'
                 />
-                {currentStep === 'creating' ? (
+                {currentStep === 'creating' || currentStep === 'finalizing' ? (
                   splitNftOffers ? (
                     <Trans>Creating Offers</Trans>
                   ) : (

@@ -71,6 +71,7 @@ commands.allow = [
     "make_offer",
     "make_offers",
     "make_offers_with_progress",
+    "cancel_make_offers",
     "take_offer",
     "combine_offers",
     "view_offer",

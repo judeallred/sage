@@ -1,4 +1,9 @@
-import { commands, MakeOffer, OfferAmount } from '@/bindings';
+import {
+  commands,
+  MakeOffer,
+  MakeOffersProgress,
+  OfferAmount,
+} from '@/bindings';
 import { useBiometric } from '@/hooks/useBiometric';
 import { toMojos } from '@/lib/utils';
 import { OfferState, useWalletState } from '@/state';
@@ -10,7 +15,7 @@ interface UseOfferProcessorProps {
   offerState: OfferState;
   splitNftOffers: boolean;
   onProcessingEnd?: () => void; // Callback for when offer processing (success or fail) is done
-  onProgress?: (index: number) => void; // Callback for progress updates
+  onProgress?: (progress: MakeOffersProgress) => void;
 }
 
 interface UseOfferProcessorReturn {
@@ -40,6 +45,7 @@ export function useOfferProcessor({
   const cancelProcessing = useCallback(() => {
     isCancelled.current = true;
     setIsProcessing(false);
+    commands.cancelMakeOffers().catch(console.error);
     onProcessingEnd?.();
   }, [onProcessingEnd]);
 
@@ -113,18 +119,15 @@ export function useOfferProcessor({
           }),
         );
 
-        const channel = new Channel<number>();
-        channel.onmessage = (index) => onProgress?.(index);
+        const channel = new Channel<MakeOffersProgress>();
+        channel.onmessage = (progress) => onProgress?.(progress);
 
-        const data = await commands.makeOffersWithProgress(
-          { offers },
-          channel,
-        );
+        const data = await commands.makeOffersWithProgress({ offers }, channel);
         if (!isCancelled.current) {
           setCreatedOffers(data.offers.map((offer) => offer.offer));
         }
       } else {
-        onProgress?.(0);
+        onProgress?.({ phase: 'building', index: 0 });
 
         const offeredAssets: OfferAmount[] = [
           ...offeredTokens,

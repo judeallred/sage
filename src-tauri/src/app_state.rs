@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use sage::{Result, Sage};
 use sage_api::SyncEvent as ApiEvent;
@@ -13,6 +16,27 @@ use tokio::{sync::Mutex, task::JoinHandle};
 pub struct Initialized(pub Mutex<bool>);
 
 pub struct RpcTask(pub Mutex<Option<JoinHandle<anyhow::Result<()>>>>);
+
+#[derive(Default)]
+pub struct OfferCreationCancellation(Mutex<Option<Arc<AtomicBool>>>);
+
+impl OfferCreationCancellation {
+    pub async fn begin(&self) -> Arc<AtomicBool> {
+        let flag = Arc::new(AtomicBool::new(false));
+        *self.0.lock().await = Some(flag.clone());
+        flag
+    }
+
+    pub async fn end(&self) {
+        *self.0.lock().await = None;
+    }
+
+    pub async fn cancel(&self) {
+        if let Some(flag) = self.0.lock().await.as_ref() {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+}
 
 pub type AppState = Arc<Mutex<Sage>>;
 

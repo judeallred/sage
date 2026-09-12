@@ -38,6 +38,8 @@ interface TokenWithName extends TokenAmount {
   precision?: number;
 }
 
+const UNSELECTED_TOKEN_ASSET_ID = '';
+
 function AssetDisplay({
   assets,
   type,
@@ -65,10 +67,11 @@ function AssetDisplay({
     return assets.options.filter((id) => id && typeof id === 'string');
   }, [assets.options]);
 
-  // asset_id === '' means the row hasn't had a token selected yet (distinct from
-  // asset_id === null, which means XCH) — exclude it, same as nftIds/optionIds above.
   const validTokens = useMemo(
-    () => assets.tokens.filter((token) => token.asset_id !== ''),
+    () =>
+      assets.tokens.filter(
+        (token) => token.asset_id !== UNSELECTED_TOKEN_ASSET_ID,
+      ),
     [assets.tokens],
   );
 

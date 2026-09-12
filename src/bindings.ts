@@ -209,8 +209,11 @@ async makeOffer(req: MakeOffer) : Promise<MakeOfferResponse> {
 async makeOffers(req: MakeOffers) : Promise<MakeOffersResponse> {
     return await TAURI_INVOKE("make_offers", { req });
 },
-async makeOffersWithProgress(req: MakeOffers, onProgress: TAURI_CHANNEL<number>) : Promise<MakeOffersResponse> {
+async makeOffersWithProgress(req: MakeOffers, onProgress: TAURI_CHANNEL<MakeOffersProgress>) : Promise<MakeOffersResponse> {
     return await TAURI_INVOKE("make_offers_with_progress", { req, onProgress });
+},
+async cancelMakeOffers() : Promise<null> {
+    return await TAURI_INVOKE("cancel_make_offers");
 },
 async takeOffer(req: TakeOffer) : Promise<TakeOfferResponse> {
     return await TAURI_INVOKE("take_offer", { req });
@@ -1932,13 +1935,14 @@ offer: string;
  */
 offer_id: string }
 /**
- * Create multiple offers in a single call, reusing one signing-key decryption for all of them
+ * Create multiple offers in one call
  */
 export type MakeOffers = { 
 /**
  * The offers to create
  */
 offers: MakeOffer[] }
+export type MakeOffersProgress = { phase: "building"; index: number } | { phase: "importing" }
 /**
  * Response with created offers
  */
