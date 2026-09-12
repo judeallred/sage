@@ -17,14 +17,23 @@ pub struct Initialized(pub Mutex<bool>);
 
 pub struct RpcTask(pub Mutex<Option<JoinHandle<anyhow::Result<()>>>>);
 
+#[derive(Clone)]
+pub struct CancellationFlag(Arc<AtomicBool>);
+
+impl CancellationFlag {
+    pub fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
 #[derive(Default)]
 pub struct OfferCreationCancellation(Mutex<Option<Arc<AtomicBool>>>);
 
 impl OfferCreationCancellation {
-    pub async fn begin(&self) -> Arc<AtomicBool> {
+    pub async fn begin(&self) -> CancellationFlag {
         let flag = Arc::new(AtomicBool::new(false));
         *self.0.lock().await = Some(flag.clone());
-        flag
+        CancellationFlag(flag)
     }
 
     pub async fn end(&self) {

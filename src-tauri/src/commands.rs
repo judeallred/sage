@@ -92,7 +92,7 @@ pub async fn make_offers_with_progress(
             |progress| {
                 let _ = on_progress.send(progress);
             },
-            || cancelled.load(std::sync::atomic::Ordering::Relaxed),
+            || cancelled.is_cancelled(),
         )
         .await;
 

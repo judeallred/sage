@@ -281,6 +281,8 @@ export function OfferCreationProgressDialog({
     return null;
   };
 
+  const progressMessage = getProgressMessage();
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent>
@@ -314,9 +316,9 @@ export function OfferCreationProgressDialog({
             {isProcessing || isUploading ? (
               <div className='space-y-2'>
                 <p>{getWaitMessage()}</p>
-                {getProgressMessage() && (
+                {progressMessage && (
                   <p className='text-sm text-muted-foreground'>
-                    {getProgressMessage()}
+                    {progressMessage}
                   </p>
                 )}
               </div>
